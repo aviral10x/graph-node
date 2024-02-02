@@ -11,6 +11,7 @@ use never::Never;
 use semver::Version;
 use web3::types::H160;
 
+use graph::blockchain::BlockTime;
 use graph::blockchain::Blockchain;
 use graph::components::store::{EnsLookup, GetScope, LoadRelatedRequest};
 use graph::components::subgraph::{
@@ -351,7 +352,7 @@ impl HostExports {
         let entity_type = state.entity_cache.schema.entity_type(&entity_type)?;
         Self::expect_object_type(&entity_type, "remove")?;
 
-        let key = entity_type.parse_key_in(entity_id, self.data_source_causality_region)?;
+        let key = entity_type.parse_key_in(entity_id, self.data_source.causality_region)?;
         self.check_entity_type_access(&key.entity_type)?;
 
         gas.consume_host_fn_with_metrics(
@@ -375,7 +376,7 @@ impl HostExports {
         let entity_type = state.entity_cache.schema.entity_type(&entity_type)?;
         Self::expect_object_type(&entity_type, "get")?;
 
-        let store_key = entity_type.parse_key_in(entity_id, self.data_source_causality_region)?;
+        let store_key = entity_type.parse_key_in(entity_id, self.data_source.causality_region)?;
         self.check_entity_type_access(&store_key.entity_type)?;
 
         let result = state.entity_cache.get(&store_key, scope)?;
@@ -1113,7 +1114,7 @@ pub mod test_support {
     use std::{collections::HashMap, sync::Arc};
 
     use graph::{
-        blockchain::{BlockTime, Blockchain},
+        blockchain::BlockTime,
         components::{
             store::{BlockNumber, GetScope},
             subgraph::SharedProofOfIndexing,
