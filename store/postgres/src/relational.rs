@@ -1020,22 +1020,40 @@ impl Layout {
         last_rollup: Option<BlockTime>,
         block_times: &[(BlockNumber, BlockTime)],
     ) -> Result<(), StoreError> {
+        if block_times.is_empty() {
+            return Ok(());
+        }
+
+        // If we have never done a rollup, we can just use the smallest
+        // block time we are getting as the time for the last rollup
+        let mut last_rollup = last_rollup.unwrap_or_else(|| {
+            block_times
+                .iter()
+                .map(|(_, block_time)| *block_time)
+                .min()
+                .unwrap()
+        });
         // The for loop could be eliminated if the rollup queries could deal
         // with the full `block_times` vector, but the SQL for that will be
         // very complicated and is left for a future improvement.
-        let mut last_rollup = last_rollup.unwrap_or(BlockTime::NONE);
         for (block, block_time) in block_times {
             for rollup in &self.rollups {
                 let buckets = rollup.interval.buckets(last_rollup, *block_time);
-                if buckets.is_empty() {
-                    // The rollups are in increasing order of interval size, so
-                    // if a smaller interval doesn't have a bucket between
-                    // last_rollup and block_time, a larger one can't either and
-                    // we are done with this rollup.
-                    break;
-                }
-                for bucket in buckets {
-                    rollup.insert(conn, &bucket, *block)?;
+                // We only need to pay attention to the first bucket; if
+                // there are more buckets, there's nothing to rollup for
+                // them as the next changes we wrote are for `block_time`,
+                // and we'll catch that on the next iteration of the loop.
+                match buckets.first() {
+                    None => {
+                        // The rollups are in increasing order of interval size, so
+                        // if a smaller interval doesn't have a bucket between
+                        // last_rollup and block_time, a larger one can't either and
+                        // we are done with this rollup.
+                        break;
+                    }
+                    Some(bucket) => {
+                        rollup.insert(conn, &bucket, *block)?;
+                    }
                 }
             }
             last_rollup = *block_time;
